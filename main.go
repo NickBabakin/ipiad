@@ -1,10 +1,14 @@
 package main
 
 import (
-	"github.com/NickBabakin/ipiad/parser"
+	"fmt"
+
+	p "github.com/NickBabakin/ipiad/parser"
 )
 
 func main() {
-	p := parser.Parser{FirstPage: "something"}
-	parser.Parse(p)
+	parser := p.Parser{}
+	html := parser.HTMLfromURL("https://career.habr.com/vacancies")
+	fmt.Printf("\n\n\n\n NOW TO LINK \n\n\n\n")
+	parser.ParseHTML(html)
 }
