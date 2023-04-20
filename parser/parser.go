@@ -12,6 +12,28 @@ import (
 
 type Parser struct{}
 
+func getVacanciesURLs(n *html.Node) []string {
+	var fillURLs func(*html.Node, *[]string)
+	fillURLs = func(n *html.Node, vacanciesURLs *[]string) {
+		if n.Type == html.ElementNode && n.Data == "a" {
+			for _, a := range n.Attr {
+				if a.Key == "href" {
+					//fmt.Println(a.Val)
+					*vacanciesURLs = append(*vacanciesURLs, a.Val)
+					break
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			fillURLs(c, vacanciesURLs)
+		}
+		//fmt.Println(vacanciesURLs)
+	}
+	vacanciesURLs := make([]string, 0, 512)
+	fillURLs(n, &vacanciesURLs)
+	return vacanciesURLs
+}
+
 func (p Parser) HTMLfromURL(url string) string {
 	res, err := http.Get(url)
 	if err != nil {
@@ -23,29 +45,17 @@ func (p Parser) HTMLfromURL(url string) string {
 		log.Fatal(err)
 	}
 	defer res.Body.Close()
-	//fmt.Println(res.Status, "\n\n\n", html)
 	return html
 }
 
 func (p Parser) ParseHTML(html_string string) {
-	fmt.Printf("Hello, World!\n")
 	doc, err := html.Parse(strings.NewReader(html_string))
 	if err != nil {
 		log.Fatal(err)
 	}
-	var f func(*html.Node)
-	f = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "a" {
-			for _, a := range n.Attr {
-				if a.Key == "href" {
-					fmt.Println(a.Val)
-					break
-				}
-			}
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			f(c)
-		}
+	vacanciesURLs := getVacanciesURLs(doc)
+	for _, s := range vacanciesURLs {
+		fmt.Println(s)
 	}
-	f(doc)
+	fmt.Println(len(vacanciesURLs), "  ", cap(vacanciesURLs))
 }
