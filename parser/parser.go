@@ -13,7 +13,7 @@ import (
 
 type Parser struct{}
 
-func getVacanciesURLs(n *html.Node) []string {
+func getVacanciesURLs(n *html.Node) *[]string {
 	var fillURLs func(*html.Node, *[]string, *regexp.Regexp)
 	re, _ := regexp.Compile(`^\/vacancies\/[0-9]+$`)
 	fillURLs = func(n *html.Node, vacanciesURLs *[]string, re *regexp.Regexp) {
@@ -21,7 +21,8 @@ func getVacanciesURLs(n *html.Node) []string {
 			for _, a := range n.Attr {
 				if a.Key == "href" {
 					if re.MatchString(a.Val) {
-						*vacanciesURLs = append(*vacanciesURLs, "https://career.habr.com"+a.Val) //TODO: append unique only
+						*vacanciesURLs = append(*vacanciesURLs, "https://career.habr.com"+a.Val)
+						//TODO: append unique only
 					}
 				}
 			}
@@ -32,11 +33,12 @@ func getVacanciesURLs(n *html.Node) []string {
 	}
 	vacanciesURLs := make([]string, 0, 512)
 	fillURLs(n, &vacanciesURLs, re)
-	return vacanciesURLs
+	return &vacanciesURLs
 }
 
 func (p Parser) HTMLfromURL(url string) *html.Node {
-	res, err := http.Get(url) //TODO: check for http error codes
+	res, err := http.Get(url)
+	//TODO: check for http error codes
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -46,6 +48,7 @@ func (p Parser) HTMLfromURL(url string) *html.Node {
 	}
 	defer res.Body.Close()
 	html_string := string(html_data)
+	fmt.Printf(html_string, "\nhey\n\n\n\n\n\n\n\n\n\n\n")
 	doc, err := html.Parse(strings.NewReader(html_string))
 	if err != nil {
 		log.Fatal(err)
@@ -53,10 +56,7 @@ func (p Parser) HTMLfromURL(url string) *html.Node {
 	return doc
 }
 
-func (p Parser) ParseStartingHTML(doc *html.Node) {
+func (p Parser) ParseStartingHTML(doc *html.Node) *[]string {
 	vacanciesURLs := getVacanciesURLs(doc)
-	for _, s := range vacanciesURLs {
-		fmt.Println(s)
-	}
-	fmt.Println(len(vacanciesURLs))
+	return vacanciesURLs
 }
