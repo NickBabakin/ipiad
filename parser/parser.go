@@ -1,17 +1,28 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/andybalholm/cascadia"
 
 	"golang.org/x/net/html"
 )
 
 type Parser struct{}
+
+func Query(n *html.Node, query string) *html.Node {
+	sel, err := cascadia.Parse(query)
+	if err != nil {
+		return &html.Node{}
+	}
+	return cascadia.Query(n, sel)
+}
 
 func getVacanciesURLs(n *html.Node) *[]string {
 	var fillURLs func(*html.Node, *[]string, *regexp.Regexp)
@@ -36,27 +47,41 @@ func getVacanciesURLs(n *html.Node) *[]string {
 	return &vacanciesURLs
 }
 
-func (p Parser) HTMLfromURL(url string) *html.Node {
+func (p Parser) HTMLfromURL(url string) (*html.Node, error) {
 	res, err := http.Get(url)
 	//TODO: check for http error codes
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		return nil, err
+	}
+	if res.StatusCode != 200 {
+		return nil, errors.New("request status is " + strconv.Itoa(res.StatusCode) + ". Unable to fetch data")
 	}
 	html_data, err := io.ReadAll(res.Body)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		return nil, err
 	}
 	defer res.Body.Close()
 	html_string := string(html_data)
-	fmt.Printf(html_string, "\nhey\n\n\n\n\n\n\n\n\n\n\n")
-	doc, err := html.Parse(strings.NewReader(html_string))
+	//fmt.Printf(html_string, "\nhey\n\n\n\n\n\n\n\n\n\n\n")
+	page, err := html.Parse(strings.NewReader(html_string))
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		return nil, err
 	}
-	return doc
+	return page, nil
 }
 
-func (p Parser) ParseStartingHTML(doc *html.Node) *[]string {
-	vacanciesURLs := getVacanciesURLs(doc)
+func (p Parser) ParseStartingPage(page *html.Node) *[]string {
+	vacanciesURLs := getVacanciesURLs(page)
 	return vacanciesURLs
+}
+
+func (p Parser) ParseVacanciePage(page *html.Node) {
+	title := Query(page, ".page-title__title").FirstChild.Data
+	company_name := Query(page, ".company_name > a").FirstChild.Data
+
+	fmt.Println("\n", title)
+	fmt.Println("", company_name)
 }

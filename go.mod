@@ -2,4 +2,7 @@ module github.com/NickBabakin/ipiad
 
 go 1.18
 
-require golang.org/x/net v0.9.0
+require (
+	github.com/andybalholm/cascadia v1.3.2
+	golang.org/x/net v0.9.0
+)
