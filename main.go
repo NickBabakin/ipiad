@@ -13,13 +13,14 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	vacanciesURLs := parser.ParseStartingPage(page)
-	for _, vacancieURL := range *vacanciesURLs {
-		vacancie, err := parser.HTMLfromURL(vacancieURL)
+	vacancies := parser.ParseStartingPage(page)
+	for _, vacancie := range *vacancies {
+		node, err := parser.HTMLfromURL(vacancie.Url)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		parser.ParseVacanciePage(vacancie)
+		vacancie.HtmlNode = node
+		parser.ParseVacanciePage(&vacancie)
 	}
 }
