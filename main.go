@@ -1,27 +1,20 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"time"
+	"sync"
 
 	p "github.com/NickBabakin/ipiad/parser"
 	"github.com/NickBabakin/ipiad/rabbitmqgo"
+	v "github.com/NickBabakin/ipiad/vacanciestructs"
 )
 
-func main() {
+var vacancieMinInfoStr string = "VacancieMinInfo"
 
-	v := p.VacancieMinInfo{
-		Url: "vacancieMinInfo.Url",
-		Id:  "vacancieMinInfo.Id"}
-	j, err := json.Marshal(v)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	rabbitmqgo.Send(j)
-	time.Sleep(2 * time.Second)
-	rabbitmqgo.Receive()
+func main() {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go rabbitmqgo.Receive(vacancieMinInfoStr, &wg)
 
 	parser := p.Parser{}
 	page, err := parser.HTMLfromURL("https://career.habr.com/vacancies")
@@ -37,11 +30,12 @@ func main() {
 			fmt.Println(err)
 			continue
 		}
-		vacancie := p.Vacancie{
+		vacancie := v.Vacancie{
 			Url:      vacancieMinInfo.Url,
 			Id:       vacancieMinInfo.Id,
 			HtmlNode: node,
 		}
 		parser.ParseVacanciePage(&vacancie)
 	}
+	wg.Wait()
 }

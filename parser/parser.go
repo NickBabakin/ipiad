@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -8,6 +9,8 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/NickBabakin/ipiad/rabbitmqgo"
+	v "github.com/NickBabakin/ipiad/vacanciestructs"
 	"github.com/andybalholm/cascadia"
 
 	"golang.org/x/net/html"
@@ -23,30 +26,25 @@ func Query(n *html.Node, query string) *html.Node {
 
 type Parser struct{}
 
-type Vacancie struct {
-	Url         string
-	Title       string
-	CompanyName string
-	Id          string
-	HtmlNode    *html.Node
-}
-
-type VacancieMinInfo struct {
-	Url string `json:"url"`
-	Id  string `json:"id"`
-}
-
-func (p Parser) ParseStartingPage(page *html.Node) *map[string]VacancieMinInfo {
-	var fillURLs func(*html.Node, *map[string]VacancieMinInfo, *regexp.Regexp)
+func (p Parser) ParseStartingPage(page *html.Node) *map[string]v.VacancieMinInfo {
+	var fillURLs func(*html.Node, *map[string]v.VacancieMinInfo, *regexp.Regexp)
 	re, _ := regexp.Compile(`^\/vacancies\/[0-9]+$`)
-	fillURLs = func(n *html.Node, vacancies *map[string]VacancieMinInfo, re *regexp.Regexp) {
+	fillURLs = func(n *html.Node, vacancies *map[string]v.VacancieMinInfo, re *regexp.Regexp) {
 		if n.Type == html.ElementNode && n.Data == "a" {
 			for _, a := range n.Attr {
 				if a.Key == "href" {
 					if re.MatchString(a.Val) {
-						(*vacancies)[a.Val[len(a.Val)-10:]] = VacancieMinInfo{
+						v := v.VacancieMinInfo{
 							Url: "https://career.habr.com" + a.Val,
 							Id:  a.Val[len(a.Val)-10:]}
+						(*vacancies)[a.Val[len(a.Val)-10:]] = v
+
+						j, err := json.Marshal(v)
+						if err != nil {
+							fmt.Println(err)
+							return
+						}
+						rabbitmqgo.Send(j, "VacancieMinInfo")
 					}
 				}
 			}
@@ -55,7 +53,7 @@ func (p Parser) ParseStartingPage(page *html.Node) *map[string]VacancieMinInfo {
 			fillURLs(c, vacancies, re)
 		}
 	}
-	vacanciesMinInfo := make(map[string]VacancieMinInfo)
+	vacanciesMinInfo := make(map[string]v.VacancieMinInfo)
 	fillURLs(page, &vacanciesMinInfo, re)
 	return &vacanciesMinInfo
 }
@@ -79,8 +77,8 @@ func (p Parser) HTMLfromURL(url string) (*html.Node, error) {
 	return page, nil
 }
 
-func (p Parser) ParseVacanciePage(v *Vacancie) {
-	v.Title = Query(v.HtmlNode, ".page-title__title").FirstChild.Data
-	v.CompanyName = Query(v.HtmlNode, ".company_name > a").FirstChild.Data
-	log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", v.Id, v.Title, v.CompanyName, v.Url)
+func (p Parser) ParseVacanciePage(va *v.Vacancie) {
+	va.Title = Query(va.HtmlNode, ".page-title__title").FirstChild.Data
+	va.CompanyName = Query(va.HtmlNode, ".company_name > a").FirstChild.Data
+	log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", va.Id, va.Title, va.CompanyName, va.Url)
 }

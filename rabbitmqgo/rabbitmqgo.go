@@ -2,10 +2,12 @@ package rabbitmqgo
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"sync"
 	"time"
 
+	v "github.com/NickBabakin/ipiad/vacanciestructs"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -28,18 +30,18 @@ func initRabbit() (*amqp.Channel, *amqp.Connection) {
 	return ch, conn
 }
 
-func Send(body []byte) {
+func Send(body []byte, queueName string) {
 	ch, conn := initRabbit()
 	defer conn.Close()
 	defer ch.Close()
 
 	q, err := ch.QueueDeclare(
-		"VacancieMinInfo", // name
-		false,             // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // no-wait
-		nil,               // arguments
+		queueName, // name
+		false,     // durable
+		false,     // delete when unused
+		false,     // exclusive
+		false,     // no-wait
+		nil,       // arguments
 	)
 	failOnError(err, "Failed to declare a queue")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -58,18 +60,20 @@ func Send(body []byte) {
 	log.Printf(" [x] Sent %s\n", body)
 }
 
-func Receive() {
+func Receive(queueName string, wg_ext *sync.WaitGroup) {
+	defer wg_ext.Done()
+
 	ch, conn := initRabbit()
 	defer conn.Close()
 	defer ch.Close()
 
 	q, err := ch.QueueDeclare(
-		"VacancieMinInfo", // name
-		false,             // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // no-wait
-		nil,               // arguments
+		queueName, // name
+		false,     // durable
+		false,     // delete when unused
+		false,     // exclusive
+		false,     // no-wait
+		nil,       // arguments
 	)
 	failOnError(err, "Failed to declare a queue")
 
@@ -88,10 +92,12 @@ func Receive() {
 	wg.Add(1)
 
 	go func() {
+		defer wg.Done()
 		for d := range msgs {
+			var va v.VacancieMinInfo
 			log.Printf("Received a message: %s\n", d.Body)
-			wg.Done()
-			return
+			json.Unmarshal(d.Body, &va)
+			log.Printf("\nVacancie unmarshaled: \n\tId: %s\n\tUrl: %s\n\n", va.Id, va.Url)
 		}
 	}()
 
