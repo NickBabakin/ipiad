@@ -2,12 +2,10 @@ package rabbitmqgo
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"sync"
 	"time"
 
-	v "github.com/NickBabakin/ipiad/vacanciestructs"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -60,7 +58,7 @@ func Send(body []byte, queueName string) {
 	log.Printf(" [x] Sent %s\n", body)
 }
 
-func Receive(queueName string, wg_ext *sync.WaitGroup) {
+func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan []byte) {
 	defer wg_ext.Done()
 
 	ch, conn := initRabbit()
@@ -94,10 +92,7 @@ func Receive(queueName string, wg_ext *sync.WaitGroup) {
 	go func() {
 		defer wg.Done()
 		for d := range msgs {
-			var va v.VacancieMinInfo
-			log.Printf("Received a message: %s\n", d.Body)
-			json.Unmarshal(d.Body, &va)
-			log.Printf("\nVacancie unmarshaled: \n\tId: %s\n\tUrl: %s\n\n", va.Id, va.Url)
+			chv <- d.Body
 		}
 	}()
 
