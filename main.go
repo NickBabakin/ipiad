@@ -3,11 +3,13 @@ package main
 import (
 	"log"
 	"sync"
+	"time"
 
 	p "github.com/NickBabakin/ipiad/parser"
 )
 
 func main() {
+	time.Sleep(3 * time.Second)
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	var wg sync.WaitGroup
