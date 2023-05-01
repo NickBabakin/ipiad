@@ -17,6 +17,8 @@ import (
 	"golang.org/x/net/html"
 )
 
+var vacancieMinInfoStr string = "VacancieMinInfo"
+
 func Query(n *html.Node, query string) *html.Node {
 	sel, err := cascadia.Parse(query)
 	if err != nil {
@@ -25,43 +27,48 @@ func Query(n *html.Node, query string) *html.Node {
 	return cascadia.Query(n, sel)
 }
 
-func ParseStartingPage(habr_str string) *map[string]v.VacancieMinInfo {
+var i int = 0
+
+func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
+	defer wg_ext.Done()
 
 	page, err := HTMLfromURL(habr_str)
 	if err != nil {
 		fmt.Println(err)
-		return nil
+		return
 	}
 
-	var fillURLs func(*html.Node, *map[string]v.VacancieMinInfo, *regexp.Regexp)
+	var fillURLs func(*html.Node, *regexp.Regexp)
 	re, _ := regexp.Compile(`^\/vacancies\/[0-9]+$`)
-	fillURLs = func(n *html.Node, vacancies *map[string]v.VacancieMinInfo, re *regexp.Regexp) {
+	fillURLs = func(n *html.Node, re *regexp.Regexp) {
 		if n.Type == html.ElementNode && n.Data == "a" {
 			for _, a := range n.Attr {
 				if a.Key == "href" {
 					if re.MatchString(a.Val) {
+						i++
+						if i > 5 {
+							return
+						}
 						v := v.VacancieMinInfo{
 							Url: "https://career.habr.com" + a.Val,
 							Id:  a.Val[len(a.Val)-10:]}
-						(*vacancies)[a.Val[len(a.Val)-10:]] = v
 
 						j, err := json.Marshal(v)
 						if err != nil {
 							fmt.Println(err)
 							return
 						}
-						rabbitmqgo.Send(j, "VacancieMinInfo")
+						rabbitmqgo.Send(j, vacancieMinInfoStr)
 					}
 				}
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			fillURLs(c, vacancies, re)
+			fillURLs(c, re)
 		}
 	}
-	vacanciesMinInfo := make(map[string]v.VacancieMinInfo)
-	fillURLs(page, &vacanciesMinInfo, re)
-	return &vacanciesMinInfo
+	fillURLs(page, re)
+	rabbitmqgo.Send([]byte("stop"), vacancieMinInfoStr)
 }
 
 func HTMLfromURL(url string) (*html.Node, error) {
@@ -89,23 +96,39 @@ func ParseVacanciePage(va *v.Vacancie) {
 	log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", va.Id, va.Title, va.CompanyName, va.Url)
 }
 
-func ParseVacancies(chv chan []byte, wg_ext *sync.WaitGroup) {
+func ParseVacancies(wg_ext *sync.WaitGroup) {
 	defer wg_ext.Done()
-	for msg := range chv {
-		var va v.VacancieMinInfo
-		log.Printf("Received a message: %s\n", msg)
-		json.Unmarshal(msg, &va)
-		log.Printf("\nVacancie unmarshaled: \n\tId: %s\n\tUrl: %s\n\n", va.Id, va.Url)
-		node, err := HTMLfromURL(va.Url)
-		if err != nil {
-			fmt.Println(err)
-			continue
+
+	vmis := make(chan []byte, 100)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go rabbitmqgo.Receive(vacancieMinInfoStr, &wg, vmis)
+
+	for vmi := range vmis {
+		if string(vmi) == "stop" {
+			break
 		}
-		vacancie := v.Vacancie{
-			Url:      va.Url,
-			Id:       va.Id,
-			HtmlNode: node,
-		}
-		ParseVacanciePage(&vacancie)
+
+		wg.Add(1)
+		go func(vmi_c []byte) {
+			defer wg.Done()
+			var va v.VacancieMinInfo
+			log.Printf("Received a message: %s\n", vmi_c)
+			json.Unmarshal(vmi_c, &va)
+			node, err := HTMLfromURL(va.Url)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			vacancie := v.Vacancie{
+				Url:      va.Url,
+				Id:       va.Id,
+				HtmlNode: node,
+			}
+			ParseVacanciePage(&vacancie)
+		}(vmi)
+
 	}
+	log.Printf(" All VacancieMinInfo processed\n")
+	wg.Wait()
 }

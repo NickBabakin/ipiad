@@ -91,11 +91,15 @@ func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan []byte) {
 
 	go func() {
 		defer wg.Done()
-		for d := range msgs {
-			chv <- d.Body
+		for msg := range msgs {
+			chv <- msg.Body
+			if string(msg.Body) == "stop" {
+				log.Printf(" [*] Stopped receiving from %s\n", queueName)
+				break
+			}
 		}
 	}()
 
-	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
+	log.Printf(" [*] Waiting for messages from %s\n", queueName)
 	wg.Wait()
 }
