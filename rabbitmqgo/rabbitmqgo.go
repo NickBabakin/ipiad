@@ -9,13 +9,18 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+type Rabbit struct {
+	Conn *amqp.Connection
+	Ch   *amqp.Channel
+}
+
 func failOnError(err error, msg string) {
 	if err != nil {
 		log.Panicf("%s: %s", msg, err)
 	}
 }
 
-func initRabbit() (*amqp.Channel, *amqp.Connection) {
+func InitRabbit() *Rabbit {
 	//conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/") // with docker
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/") // without docker
 	failOnError(err, "Failed to connect to RabbitMQ")
@@ -26,15 +31,18 @@ func initRabbit() (*amqp.Channel, *amqp.Connection) {
 	}
 	failOnError(err, "Failed to open a channel")
 
-	return ch, conn
+	return &Rabbit{
+		Conn: conn,
+		Ch:   ch,
+	}
 }
 
 func Send(body []byte, queueName string) {
-	ch, conn := initRabbit()
-	defer conn.Close()
-	defer ch.Close()
+	rabbit := InitRabbit()
+	defer rabbit.Conn.Close()
+	defer rabbit.Ch.Close()
 
-	q, err := ch.QueueDeclare(
+	q, err := rabbit.Ch.QueueDeclare(
 		queueName, // name
 		false,     // durable
 		false,     // delete when unused
@@ -46,7 +54,7 @@ func Send(body []byte, queueName string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = ch.PublishWithContext(ctx,
+	err = rabbit.Ch.PublishWithContext(ctx,
 		"",     // exchange
 		q.Name, // routing key
 		false,  // mandatory
@@ -59,14 +67,14 @@ func Send(body []byte, queueName string) {
 	log.Printf(" [x] Sent %s\n", body)
 }
 
-func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan *amqp.Delivery) {
+func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan *amqp.Delivery, rabbit *Rabbit) {
 	defer wg_ext.Done()
 
-	ch, conn := initRabbit()
-	defer conn.Close()
-	defer ch.Close()
+	//rabbit := InitRabbit()
+	//defer rabbit.conn.Close()
+	//defer rabbit.ch.Close()
 
-	q, err := ch.QueueDeclare(
+	q, err := rabbit.Ch.QueueDeclare(
 		queueName, // name
 		false,     // durable
 		false,     // delete when unused
@@ -76,7 +84,7 @@ func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan *amqp.Delivery) 
 	)
 	failOnError(err, "Failed to declare a queue")
 
-	msgs, err := ch.Consume(
+	msgs, err := rabbit.Ch.Consume(
 		q.Name, // queue
 		"",     // consumer
 		false,  // auto-ack

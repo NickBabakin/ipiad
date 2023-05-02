@@ -107,10 +107,14 @@ func ParseVacanciePage(va *v.Vacancie) v.VacancieFullInfo {
 func ParseVacancies(wg_ext *sync.WaitGroup) {
 	defer wg_ext.Done()
 
+	rabbit := rabbitmqgo.InitRabbit()
+	defer rabbit.Conn.Close()
+	defer rabbit.Ch.Close()
+
 	vmis := make(chan *amqp.Delivery, 100)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go rabbitmqgo.Receive(vacancieMinInfoStr, &wg, vmis)
+	go rabbitmqgo.Receive(vacancieMinInfoStr, &wg, vmis, rabbit)
 
 	for vmi := range vmis {
 		if string(vmi.Body) == "stop" {
