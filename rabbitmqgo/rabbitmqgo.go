@@ -16,7 +16,8 @@ func failOnError(err error, msg string) {
 }
 
 func initRabbit() (*amqp.Channel, *amqp.Connection) {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+	//conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/") // with docker
+	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/") // without docker
 	failOnError(err, "Failed to connect to RabbitMQ")
 
 	ch, err := conn.Channel()
@@ -58,7 +59,7 @@ func Send(body []byte, queueName string) {
 	log.Printf(" [x] Sent %s\n", body)
 }
 
-func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan []byte) {
+func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan amqp.Delivery) {
 	defer wg_ext.Done()
 
 	ch, conn := initRabbit()
@@ -78,7 +79,7 @@ func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan []byte) {
 	msgs, err := ch.Consume(
 		q.Name, // queue
 		"",     // consumer
-		true,   // auto-ack
+		false,  // auto-ack
 		false,  // exclusive
 		false,  // no-local
 		false,  // no-wait
@@ -92,7 +93,8 @@ func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan []byte) {
 	go func() {
 		defer wg.Done()
 		for msg := range msgs {
-			chv <- msg.Body
+			chv <- msg
+			msg.Ack(false)
 			if string(msg.Body) == "stop" {
 				log.Printf(" [*] Stopped receiving from %s\n", queueName)
 				break

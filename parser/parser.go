@@ -13,6 +13,7 @@ import (
 	"github.com/NickBabakin/ipiad/rabbitmqgo"
 	v "github.com/NickBabakin/ipiad/vacanciestructs"
 	"github.com/andybalholm/cascadia"
+	amqp "github.com/rabbitmq/amqp091-go"
 
 	"golang.org/x/net/html"
 )
@@ -99,22 +100,22 @@ func ParseVacanciePage(va *v.Vacancie) {
 func ParseVacancies(wg_ext *sync.WaitGroup) {
 	defer wg_ext.Done()
 
-	vmis := make(chan []byte, 100)
+	vmis := make(chan amqp.Delivery, 100)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go rabbitmqgo.Receive(vacancieMinInfoStr, &wg, vmis)
 
 	for vmi := range vmis {
-		if string(vmi) == "stop" {
+		if string(vmi.Body) == "stop" {
 			break
 		}
 
 		wg.Add(1)
-		go func(vmi_c []byte) {
+		go func(vmi amqp.Delivery) {
 			defer wg.Done()
 			var va v.VacancieMinInfo
-			log.Printf("Received a message: %s\n", vmi_c)
-			json.Unmarshal(vmi_c, &va)
+			log.Printf("Received a message: %s\n", vmi.Body)
+			json.Unmarshal(vmi.Body, &va)
 			node, err := HTMLfromURL(va.Url)
 			if err != nil {
 				fmt.Println(err)
@@ -129,6 +130,6 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 		}(vmi)
 
 	}
-	log.Printf(" All VacancieMinInfo processed\n")
 	wg.Wait()
+	log.Printf(" All VacancieMinInfo processed\n")
 }
