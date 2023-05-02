@@ -59,7 +59,7 @@ func Send(body []byte, queueName string) {
 	log.Printf(" [x] Sent %s\n", body)
 }
 
-func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan amqp.Delivery) {
+func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan *amqp.Delivery) {
 	defer wg_ext.Done()
 
 	ch, conn := initRabbit()
@@ -93,8 +93,7 @@ func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan amqp.Delivery) {
 	go func() {
 		defer wg.Done()
 		for msg := range msgs {
-			chv <- msg
-			msg.Ack(false)
+			chv <- &msg
 			if string(msg.Body) == "stop" {
 				log.Printf(" [*] Stopped receiving from %s\n", queueName)
 				break

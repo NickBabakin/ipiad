@@ -14,3 +14,10 @@ type VacancieMinInfo struct {
 	Url string `json:"url"`
 	Id  string `json:"id"`
 }
+
+type VacancieFullInfo struct {
+	Url         string `json:"url"`
+	Id          string `json:"id"`
+	Title       string `json:"title"`
+	CompanyName string `json:"company_name"`
+}

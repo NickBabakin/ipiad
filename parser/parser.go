@@ -19,6 +19,7 @@ import (
 )
 
 var vacancieMinInfoStr string = "VacancieMinInfo"
+var vacancieFullInfoStr string = "VacancieFullInfo"
 
 func Query(n *html.Node, query string) *html.Node {
 	sel, err := cascadia.Parse(query)
@@ -91,34 +92,42 @@ func HTMLfromURL(url string) (*html.Node, error) {
 	return page, nil
 }
 
-func ParseVacanciePage(va *v.Vacancie) {
+func ParseVacanciePage(va *v.Vacancie) v.VacancieFullInfo {
 	va.Title = Query(va.HtmlNode, ".page-title__title").FirstChild.Data
 	va.CompanyName = Query(va.HtmlNode, ".company_name > a").FirstChild.Data
-	log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", va.Id, va.Title, va.CompanyName, va.Url)
+	//log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", va.Id, va.Title, va.CompanyName, va.Url)
+	return v.VacancieFullInfo{
+		Id:          va.Id,
+		Title:       va.Title,
+		CompanyName: va.CompanyName,
+		Url:         va.Url,
+	}
 }
 
 func ParseVacancies(wg_ext *sync.WaitGroup) {
 	defer wg_ext.Done()
 
-	vmis := make(chan amqp.Delivery, 100)
+	vmis := make(chan *amqp.Delivery, 100)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go rabbitmqgo.Receive(vacancieMinInfoStr, &wg, vmis)
 
 	for vmi := range vmis {
 		if string(vmi.Body) == "stop" {
+			vmi.Ack(false)
 			break
 		}
 
 		wg.Add(1)
-		go func(vmi amqp.Delivery) {
+		go func(vmi *amqp.Delivery) {
 			defer wg.Done()
+			vmi.Ack(false)
 			var va v.VacancieMinInfo
 			log.Printf("Received a message: %s\n", vmi.Body)
 			json.Unmarshal(vmi.Body, &va)
 			node, err := HTMLfromURL(va.Url)
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 				return
 			}
 			vacancie := v.Vacancie{
@@ -126,7 +135,18 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 				Id:       va.Id,
 				HtmlNode: node,
 			}
-			ParseVacanciePage(&vacancie)
+			vfi := ParseVacanciePage(&vacancie)
+			log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", vfi.Id, vfi.Title, vfi.CompanyName, vfi.Url)
+
+			j, err := json.Marshal(vfi)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			rabbitmqgo.Send(j, vacancieFullInfoStr)
+
+			log.Println(vmi.Ack(false))
+
 		}(vmi)
 
 	}
