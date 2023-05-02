@@ -70,7 +70,7 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 		}
 	}
 	fillURLs(page, re)
-	rabbitmqgo.Send([]byte("stop"), vacancieMinInfoStr)
+	//rabbitmqgo.Send([]byte("stop"), vacancieMinInfoStr)
 }
 
 func HTMLfromURL(url string) (*html.Node, error) {
@@ -95,7 +95,6 @@ func HTMLfromURL(url string) (*html.Node, error) {
 func ParseVacanciePage(va *v.Vacancie) v.VacancieFullInfo {
 	va.Title = Query(va.HtmlNode, ".page-title__title").FirstChild.Data
 	va.CompanyName = Query(va.HtmlNode, ".company_name > a").FirstChild.Data
-	//log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", va.Id, va.Title, va.CompanyName, va.Url)
 	return v.VacancieFullInfo{
 		Id:          va.Id,
 		Title:       va.Title,
@@ -118,14 +117,21 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 
 	for vmi := range vmis {
 		if string(vmi.Body) == "stop" {
-			vmi.Ack(false)
+			err := vmi.Ack(false)
+			if err != nil {
+				log.Println(err)
+			}
+			//rabbitmqgo.Send([]byte("stop"), vacancieFullInfoStr)
 			break
 		}
 
 		wg.Add(1)
 		go func(vmi *amqp.Delivery) {
 			defer wg.Done()
-			vmi.Ack(false)
+			err := vmi.Ack(false)
+			if err != nil {
+				log.Println(err)
+			}
 			var va v.VacancieMinInfo
 			log.Printf("Received a message: %s\n", vmi.Body)
 			json.Unmarshal(vmi.Body, &va)
@@ -148,12 +154,45 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 				return
 			}
 			rabbitmqgo.Send(j, vacancieFullInfoStr)
-
-			log.Println(vmi.Ack(false))
-
 		}(vmi)
 
 	}
 	wg.Wait()
 	log.Printf(" All VacancieMinInfo processed\n")
+}
+
+func SaveVacancies(wg_ext *sync.WaitGroup) {
+	defer wg_ext.Done()
+
+	rabbit := rabbitmqgo.InitRabbit()
+	defer rabbit.Conn.Close()
+	defer rabbit.Ch.Close()
+
+	vfis := make(chan *amqp.Delivery, 100)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go rabbitmqgo.Receive(vacancieFullInfoStr, &wg, vfis, rabbit)
+
+	for vfi := range vfis {
+		if string(vfi.Body) == "stop" {
+			err := vfi.Ack(false)
+			if err != nil {
+				log.Println(err)
+			}
+			break
+		}
+
+		wg.Add(1)
+		go func(vfi *amqp.Delivery) {
+			defer wg.Done()
+			log.Printf("Got full info %s\n", vfi.Body)
+			err := vfi.Ack(false)
+			if err != nil {
+				log.Println(err)
+			}
+		}(vfi)
+	}
+
+	wg.Wait()
+	log.Printf(" All VacancieFullInfo processed\n")
 }

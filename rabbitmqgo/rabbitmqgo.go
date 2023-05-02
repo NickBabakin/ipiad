@@ -70,10 +70,6 @@ func Send(body []byte, queueName string) {
 func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan *amqp.Delivery, rabbit *Rabbit) {
 	defer wg_ext.Done()
 
-	//rabbit := InitRabbit()
-	//defer rabbit.conn.Close()
-	//defer rabbit.ch.Close()
-
 	q, err := rabbit.Ch.QueueDeclare(
 		queueName, // name
 		false,     // durable
