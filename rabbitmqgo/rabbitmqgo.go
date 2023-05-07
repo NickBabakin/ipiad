@@ -21,10 +21,10 @@ func failOnError(err error, msg string) {
 }
 
 func InitRabbit() *Rabbit {
-	//conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/") // with docker
 	rabbit := Rabbit{nil, nil}
 	var err error
-	rabbit.Conn, err = amqp.Dial("amqp://guest:guest@localhost:5672/") // without docker
+	//rabbit.Conn, err = amqp.Dial("amqp://guest:guest@localhost:5672/") // without docker
+	rabbit.Conn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/") // with docker
 	failOnError(err, "Failed to connect to RabbitMQ")
 
 	rabbit.Ch, err = rabbit.Conn.Channel()
@@ -63,7 +63,7 @@ func Send(body []byte, queueName string) {
 	log.Printf(" [x] Sent %s\n", body)
 }
 
-func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan *amqp.Delivery, rabbit *Rabbit) {
+func Receive(queueName string, wg_ext *sync.WaitGroup, rabbit *Rabbit) <-chan amqp.Delivery {
 	defer wg_ext.Done()
 
 	q, err := rabbit.Ch.QueueDeclare(
@@ -87,18 +87,5 @@ func Receive(queueName string, wg_ext *sync.WaitGroup, chv chan *amqp.Delivery, 
 	)
 	failOnError(err, "Failed to register a consumer")
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-		defer log.Println("Connection lost. Stopped listening " + queueName)
-		for msg := range msgs {
-			log.Printf("Received %s %s\n", queueName, msg.Body)
-			chv <- &msg
-		}
-	}()
-
-	log.Printf(" [*] Waiting for messages from %s\n", queueName)
-	wg.Wait()
+	return msgs
 }

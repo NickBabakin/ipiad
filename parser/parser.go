@@ -57,7 +57,7 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 							ids = append(ids, id)
 						}
 						i++
-						if i > 20 {
+						if i > 30 {
 							return
 						}
 						v := v.VacancieMinInfo{
@@ -69,7 +69,6 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 							fmt.Println(err)
 							return
 						}
-						//time.Sleep(time.Second * 2)
 						rabbitmqgo.Send(j, vacancieMinInfoStr)
 					}
 				}
@@ -83,7 +82,7 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 }
 
 func HTMLfromURL(url string) (*html.Node, error) {
-	//log.Printf("Requesting GET %s\n", url)
+	log.Printf("Requesting GET %s\n", url)
 	res, err := http.Get(url)
 	if err != nil {
 		fmt.Println(err)
@@ -117,21 +116,16 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 
 	rabbit := rabbitmqgo.InitRabbit()
 
-	vmis := make(chan *amqp.Delivery, 100)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go rabbitmqgo.Receive(vacancieMinInfoStr, &wg, vmis, rabbit)
+	vmis := rabbitmqgo.Receive(vacancieMinInfoStr, &wg, rabbit)
 
 	for vmi := range vmis {
 		wg.Add(1)
-		go func(vmi_e *amqp.Delivery) {
+		go func(vmi_e amqp.Delivery) {
 			defer wg.Done()
-			err := vmi_e.Ack(false)
-			if err != nil {
-				log.Println("ACK error" + err.Error())
-			}
 			var va v.VacancieMinInfo
-			//log.Printf("ParseVacancies: %s\n", vmi_e.Body)
+			log.Printf("ParseVacancies: %s\n", vmi_e.Body)
 			json.Unmarshal(vmi_e.Body, &va)
 			node, err := HTMLfromURL(va.Url)
 			if err != nil {
@@ -144,7 +138,6 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 				HtmlNode: node,
 			}
 			vfi := ParseVacanciePage(&vacancie)
-			//log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", vfi.Id, vfi.Title, vfi.CompanyName, vfi.Url)
 
 			j, err := json.Marshal(vfi)
 			if err != nil {
@@ -152,6 +145,10 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 				return
 			}
 			rabbitmqgo.Send(j, vacancieFullInfoStr)
+			err = vmi_e.Ack(false)
+			if err != nil {
+				log.Println("ACK error" + err.Error())
+			}
 		}(vmi)
 
 	}
@@ -164,20 +161,19 @@ func SaveVacancies(wg_ext *sync.WaitGroup) {
 
 	rabbit := rabbitmqgo.InitRabbit()
 
-	vfis := make(chan *amqp.Delivery, 100)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go rabbitmqgo.Receive(vacancieFullInfoStr, &wg, vfis, rabbit)
+	vfis := rabbitmqgo.Receive(vacancieFullInfoStr, &wg, rabbit)
 
 	for vfi := range vfis {
 		wg.Add(1)
-		go func(vfi_e *amqp.Delivery) {
+		go func(vfi_e amqp.Delivery) {
 			defer wg.Done()
+			log.Printf("SaveVacancies %s\n", vfi_e.Body)
 			err := vfi_e.Ack(false)
 			if err != nil {
 				log.Println("ACK error" + err.Error())
 			}
-			log.Printf("SaveVacancies %s\n", vfi_e.Body)
 		}(vfi)
 	}
 
