@@ -14,6 +14,7 @@ import (
 	v "github.com/NickBabakin/ipiad/vacanciestructs"
 	"github.com/andybalholm/cascadia"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"golang.org/x/exp/slices"
 
 	"golang.org/x/net/html"
 )
@@ -34,6 +35,8 @@ var i int = 0
 func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 	defer wg_ext.Done()
 
+	ids := []string{}
+
 	page, err := HTMLfromURL(habr_str)
 	if err != nil {
 		fmt.Println(err)
@@ -47,19 +50,26 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 			for _, a := range n.Attr {
 				if a.Key == "href" {
 					if re.MatchString(a.Val) {
+						id := a.Val[len(a.Val)-10:]
+						if slices.Contains(ids, id) {
+							return
+						} else {
+							ids = append(ids, id)
+						}
 						i++
-						if i > 5 {
+						if i > 20 {
 							return
 						}
 						v := v.VacancieMinInfo{
 							Url: "https://career.habr.com" + a.Val,
-							Id:  a.Val[len(a.Val)-10:]}
+							Id:  id}
 
 						j, err := json.Marshal(v)
 						if err != nil {
 							fmt.Println(err)
 							return
 						}
+						//time.Sleep(time.Second * 2)
 						rabbitmqgo.Send(j, vacancieMinInfoStr)
 					}
 				}
@@ -70,11 +80,10 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 		}
 	}
 	fillURLs(page, re)
-	//rabbitmqgo.Send([]byte("stop"), vacancieMinInfoStr)
 }
 
 func HTMLfromURL(url string) (*html.Node, error) {
-	log.Printf("Requesting GET %s\n", url)
+	//log.Printf("Requesting GET %s\n", url)
 	res, err := http.Get(url)
 	if err != nil {
 		fmt.Println(err)
@@ -107,8 +116,6 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 	defer wg_ext.Done()
 
 	rabbit := rabbitmqgo.InitRabbit()
-	defer rabbit.Conn.Close()
-	defer rabbit.Ch.Close()
 
 	vmis := make(chan *amqp.Delivery, 100)
 	var wg sync.WaitGroup
@@ -116,25 +123,16 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 	go rabbitmqgo.Receive(vacancieMinInfoStr, &wg, vmis, rabbit)
 
 	for vmi := range vmis {
-		if string(vmi.Body) == "stop" {
-			err := vmi.Ack(false)
-			if err != nil {
-				log.Println(err)
-			}
-			//rabbitmqgo.Send([]byte("stop"), vacancieFullInfoStr)
-			break
-		}
-
 		wg.Add(1)
-		go func(vmi *amqp.Delivery) {
+		go func(vmi_e *amqp.Delivery) {
 			defer wg.Done()
-			err := vmi.Ack(false)
+			err := vmi_e.Ack(false)
 			if err != nil {
-				log.Println(err)
+				log.Println("ACK error" + err.Error())
 			}
 			var va v.VacancieMinInfo
-			log.Printf("Received a message: %s\n", vmi.Body)
-			json.Unmarshal(vmi.Body, &va)
+			//log.Printf("ParseVacancies: %s\n", vmi_e.Body)
+			json.Unmarshal(vmi_e.Body, &va)
 			node, err := HTMLfromURL(va.Url)
 			if err != nil {
 				log.Println(err)
@@ -146,7 +144,7 @@ func ParseVacancies(wg_ext *sync.WaitGroup) {
 				HtmlNode: node,
 			}
 			vfi := ParseVacanciePage(&vacancie)
-			log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", vfi.Id, vfi.Title, vfi.CompanyName, vfi.Url)
+			//log.Printf("\nVacancie: \n\tId: %s\n\tTitle %s\n\tCompany name: %s\n\tUrl: %s\n\n", vfi.Id, vfi.Title, vfi.CompanyName, vfi.Url)
 
 			j, err := json.Marshal(vfi)
 			if err != nil {
@@ -165,8 +163,6 @@ func SaveVacancies(wg_ext *sync.WaitGroup) {
 	defer wg_ext.Done()
 
 	rabbit := rabbitmqgo.InitRabbit()
-	defer rabbit.Conn.Close()
-	defer rabbit.Ch.Close()
 
 	vfis := make(chan *amqp.Delivery, 100)
 	var wg sync.WaitGroup
@@ -174,22 +170,14 @@ func SaveVacancies(wg_ext *sync.WaitGroup) {
 	go rabbitmqgo.Receive(vacancieFullInfoStr, &wg, vfis, rabbit)
 
 	for vfi := range vfis {
-		if string(vfi.Body) == "stop" {
-			err := vfi.Ack(false)
-			if err != nil {
-				log.Println(err)
-			}
-			break
-		}
-
 		wg.Add(1)
-		go func(vfi *amqp.Delivery) {
+		go func(vfi_e *amqp.Delivery) {
 			defer wg.Done()
-			log.Printf("Got full info %s\n", vfi.Body)
-			err := vfi.Ack(false)
+			err := vfi_e.Ack(false)
 			if err != nil {
-				log.Println(err)
+				log.Println("ACK error" + err.Error())
 			}
+			log.Printf("SaveVacancies %s\n", vfi_e.Body)
 		}(vfi)
 	}
 
