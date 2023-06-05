@@ -8,11 +8,6 @@ services:
         - 15672:15672
     networks:
         - rabbitmq_go_net 
- #   healthcheck:
- #       test: ["CMD", "curl", "-f", "http://rabbitmq:5672"]
- #       interval: 30s
- #       timeout: 10s
- #       retries: 5
 
   crawler:
     build: .
@@ -21,10 +16,18 @@ services:
     networks:
       - rabbitmq_go_net
     restart: on-failure
- #   depends_on:
- #     - rabbitmq
- #   links: 
- #     - rabbitmq
+
+  elastic:
+    image: elasticsearch:8.7.1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - network.host=0.0.0.0
+    networks:
+      - rabbitmq_go_net  
+
 
 networks:
   rabbitmq_go_net:
