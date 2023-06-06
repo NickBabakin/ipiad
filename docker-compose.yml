@@ -17,16 +17,17 @@ services:
       - rabbitmq_go_net
     restart: on-failure
 
-  elastic:
-    image: elasticsearch:8.7.1
-    ports:
-      - "9200:9200"
-      - "9300:9300"
+  elasticsearch:
+    container_name: es-container
+    image: elasticsearch:7.17.9
     environment:
-      - discovery.type=single-node
-      - network.host=0.0.0.0
+      - xpack.security.enabled=false
+      - "discovery.type=single-node"
     networks:
-      - rabbitmq_go_net  
+      - rabbitmq_go_net
+    ports:
+      - 9200:9200
+      - 9300:9300
 
 
 networks:
