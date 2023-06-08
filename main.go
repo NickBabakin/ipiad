@@ -5,12 +5,22 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
+	e "github.com/NickBabakin/ipiad/elasticgo"
 	p "github.com/NickBabakin/ipiad/parser"
-	"github.com/elastic/go-elasticsearch/v8"
 )
 
 func work() {
+
+	for {
+		err := e.Init_elastic()
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second * 5)
+	}
+
 	logFile, err := os.OpenFile("log.txt", os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		panic(err)
@@ -28,29 +38,8 @@ func work() {
 	wg.Wait()
 }
 
-func f_elastic() {
-	cfg := elasticsearch.Config{
-		Addresses: []string{
-			"http://localhost:9200",
-		},
-	}
-
-	es, err := elasticsearch.NewClient(cfg)
-	if err != nil {
-		log.Fatalf("Error creating the client: %s", err)
-	}
-
-	res, err := es.Info()
-	if err != nil {
-		log.Fatalf("Error getting response: %s", err)
-	}
-
-	defer res.Body.Close()
-	log.Println(res)
-}
-
 func main() {
-	//work()
-	f_elastic()
+	work()
+	//e.F_elastic()
 
 }

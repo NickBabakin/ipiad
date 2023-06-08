@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 
+	e "github.com/NickBabakin/ipiad/elasticgo"
 	"github.com/NickBabakin/ipiad/rabbitmqgo"
 	v "github.com/NickBabakin/ipiad/vacanciestructs"
 	"github.com/andybalholm/cascadia"
@@ -170,6 +171,9 @@ func SaveVacancies(wg_ext *sync.WaitGroup) {
 		go func(vfi_e amqp.Delivery) {
 			defer wg.Done()
 			log.Printf("SaveVacancies %s\n", vfi_e.Body)
+			var va v.VacancieFullInfo
+			json.Unmarshal(vfi_e.Body, &va)
+			e.IndexVacancie(va)
 			err := vfi_e.Ack(false)
 			if err != nil {
 				log.Println("ACK error" + err.Error())
