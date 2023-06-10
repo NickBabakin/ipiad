@@ -4,15 +4,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"sync"
+	"time"
 
-	e "github.com/NickBabakin/ipiad/elasticgo"
-	"github.com/NickBabakin/ipiad/rabbitmqgo"
-	v "github.com/NickBabakin/ipiad/vacanciestructs"
+	e "github.com/NickBabakin/ipiad/res/elasticgo"
+	"github.com/NickBabakin/ipiad/res/rabbitmqgo"
+	v "github.com/NickBabakin/ipiad/res/vacanciestructs"
 	"github.com/andybalholm/cascadia"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"golang.org/x/exp/slices"
@@ -61,16 +64,17 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 						if i > 30 {
 							return
 						}
-						v := v.VacancieMinInfo{
+						vacancie := v.VacancieMinInfo{
 							Url: "https://career.habr.com" + a.Val,
 							Id:  id}
 
-						j, err := json.Marshal(v)
+						vacancieJson, err := json.Marshal(vacancie)
 						if err != nil {
 							fmt.Println(err)
 							return
 						}
-						rabbitmqgo.Send(j, vacancieMinInfoStr)
+						e.IndexVacancie(string(vacancieJson), vacancie.Id)
+						rabbitmqgo.Send(vacancieJson, vacancieMinInfoStr)
 					}
 				}
 			}
@@ -173,7 +177,7 @@ func SaveVacancies(wg_ext *sync.WaitGroup) {
 			log.Printf("SaveVacancies %s\n", vfi_e.Body)
 			var va v.VacancieFullInfo
 			json.Unmarshal(vfi_e.Body, &va)
-			e.IndexVacancie(va)
+			e.IndexVacancie(string(vfi_e.Body), va.Id)
 			err := vfi_e.Ack(false)
 			if err != nil {
 				log.Println("ACK error" + err.Error())
@@ -183,4 +187,31 @@ func SaveVacancies(wg_ext *sync.WaitGroup) {
 
 	wg.Wait()
 	log.Printf(" All VacancieFullInfo processed\n")
+}
+
+func Work() {
+	for {
+		err := e.Init_elastic()
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second * 5)
+	}
+
+	logFile, err := os.OpenFile("logs/log.txt", os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		panic(err)
+	}
+
+	mw := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(mw)
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go ParseStartingPage("https://career.habr.com/vacancies", &wg)
+	go ParseVacancies(&wg)
+	go SaveVacancies(&wg)
+
+	wg.Wait()
 }
