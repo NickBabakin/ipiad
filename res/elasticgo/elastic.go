@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -43,22 +44,27 @@ func Init_elastic() error {
 	return nil
 }
 
-func IndexVacancie(vacancie string, id string) {
+func IndexVacancie(vacancie string, id string, opType string) error {
 
-	log.Printf("Successfully indexing vacancie : %s", vacancie)
 	res, err := es.Index(
 		"vacancies",                         // Index name
 		strings.NewReader(string(vacancie)), // Document body
 		es.Index.WithDocumentID(id),         // Document ID
 		es.Index.WithRefresh("true"),        // Refresh
-		es.Index.WithPretty(),
+		es.Index.WithOpType(opType),         // optype "create" fails when there already exists doc with given id,
+		es.Index.WithPretty(),               // optype "index" allows updating
 	)
 	if err != nil {
-		log.Printf("Error indexing vacancie : %s", err)
+		return err
 	}
 	defer res.Body.Close()
+	if res.StatusCode == 409 {
+		return errors.New("Doc already exists and was not updated")
+	}
+	log.Printf("Successfully indexing vacancie : %s", vacancie)
 
 	log.Println(res)
+	return nil
 }
 
 func GetVacancieById(id string) (string, error) {
@@ -72,7 +78,7 @@ func GetVacancieById(id string) (string, error) {
 	return string(vacancie_res_str), nil
 }
 
-func FindAllvacancies() {
+func FindDevVacancies() {
 	var (
 		r map[string]interface{}
 		//wg sync.WaitGroup
@@ -87,6 +93,70 @@ func FindAllvacancies() {
 					"fuzziness": "AUTO",
 				},
 			},
+		},
+	}
+	if err := json.NewEncoder(&buf).Encode(query); err != nil {
+		log.Fatalf("Error encoding query: %s", err)
+	}
+
+	// Perform the search request.
+	res, err := es.Search(
+		es.Search.WithContext(context.Background()),
+		es.Search.WithIndex("vacancies"),
+		es.Search.WithBody(&buf),
+		es.Search.WithTrackTotalHits(true),
+		es.Search.WithPretty(),
+	)
+
+	if err != nil {
+		log.Fatalf("Error getting response: %s", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		var e map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+			log.Fatalf("Error parsing the response body: %s", err)
+		} else {
+			// Print the response status and error information.
+			log.Fatalf("[%s] %s: %s",
+				res.Status(),
+				e["error"].(map[string]interface{})["type"],
+				e["error"].(map[string]interface{})["reason"],
+			)
+		}
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+		log.Fatalf("Error parsing the response body: %s", err)
+	}
+	// Print the response status, number of results, and request duration.
+	log.Printf(
+		"[%s] %d hits; took: %dms",
+		res.Status(),
+		int(r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)),
+		int(r["took"].(float64)),
+	)
+
+	// Print the ID and document source for each hit.
+	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
+		log.Printf(" * ID=%s, %s", hit.(map[string]interface{})["_id"], hit.(map[string]interface{})["_source"])
+	}
+
+	log.Println(strings.Repeat("=", 37))
+
+}
+
+func FindAllVacancies() {
+	var (
+		r map[string]interface{}
+		//wg sync.WaitGroup
+	)
+
+	var buf bytes.Buffer
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"match_all": map[string]interface{}{},
 		},
 	}
 	if err := json.NewEncoder(&buf).Encode(query); err != nil {

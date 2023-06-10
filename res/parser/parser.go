@@ -61,7 +61,7 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 							ids = append(ids, id)
 						}
 						i++
-						if i > 30 {
+						if i > 3 {
 							return
 						}
 						vacancie := v.VacancieMinInfo{
@@ -73,8 +73,10 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 							fmt.Println(err)
 							return
 						}
-						e.IndexVacancie(string(vacancieJson), vacancie.Id)
-						rabbitmqgo.Send(vacancieJson, vacancieMinInfoStr)
+						err = e.IndexVacancie(string(vacancieJson), vacancie.Id, "create")
+						if err == nil { // with "create" vacancie is indexed only if not already indexed
+							rabbitmqgo.Send(vacancieJson, vacancieMinInfoStr)
+						}
 					}
 				}
 			}
@@ -88,6 +90,7 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 
 func HTMLfromURL(url string) (*html.Node, error) {
 	log.Printf("Requesting GET %s\n", url)
+
 	res, err := http.Get(url)
 	if err != nil {
 		fmt.Println(err)
@@ -102,6 +105,7 @@ func HTMLfromURL(url string) (*html.Node, error) {
 		return nil, err
 	}
 	defer res.Body.Close()
+
 	return page, nil
 }
 
@@ -177,7 +181,7 @@ func SaveVacancies(wg_ext *sync.WaitGroup) {
 			log.Printf("SaveVacancies %s\n", vfi_e.Body)
 			var va v.VacancieFullInfo
 			json.Unmarshal(vfi_e.Body, &va)
-			e.IndexVacancie(string(vfi_e.Body), va.Id)
+			e.IndexVacancie(string(vfi_e.Body), va.Id, "index")
 			err := vfi_e.Ack(false)
 			if err != nil {
 				log.Println("ACK error" + err.Error())
