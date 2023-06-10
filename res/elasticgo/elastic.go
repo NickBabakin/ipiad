@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -43,7 +44,7 @@ func Init_elastic() error {
 	return nil
 }
 
-func IndexVacancie(vacancie string, id string) {
+/* func IndexVacancie(vacancie string, id string) {
 
 	log.Printf("Successfully indexing vacancie : %s", vacancie)
 	res, err := es.Index(
@@ -59,6 +60,29 @@ func IndexVacancie(vacancie string, id string) {
 	defer res.Body.Close()
 
 	log.Println(res)
+} */
+
+func IndexVacancie(vacancie string, id string, opType string) error {
+
+	res, err := es.Index(
+		"vacancies",                         // Index name
+		strings.NewReader(string(vacancie)), // Document body
+		es.Index.WithDocumentID(id),         // Document ID
+		es.Index.WithRefresh("true"),        // Refresh
+		es.Index.WithOpType(opType),         // optype "create" fails when there already exists doc with given id,
+		es.Index.WithPretty(),               // optype "index" allows updating
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == 409 {
+		return errors.New("Doc already exists and was not updated")
+	}
+	log.Printf("Successfully indexing vacancie : %s", vacancie)
+
+	log.Println(res)
+	return nil
 }
 
 func GetVacancieById(id string) (string, error) {

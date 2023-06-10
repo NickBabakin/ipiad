@@ -73,7 +73,11 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 							fmt.Println(err)
 							return
 						}
-						e.IndexVacancie(string(vacancieJson), vacancie.Id)
+						err = e.IndexVacancie(string(vacancieJson), vacancie.Id, "create")
+						if err != nil {
+							log.Printf("Tried to index %s : %s\n", vacancie.Id, err)
+							break
+						}
 						rabbitmqgo.Send(vacancieJson, vacancieMinInfoStr)
 					}
 				}
@@ -177,7 +181,7 @@ func SaveVacancies(wg_ext *sync.WaitGroup) {
 			log.Printf("SaveVacancies %s\n", vfi_e.Body)
 			var va v.VacancieFullInfo
 			json.Unmarshal(vfi_e.Body, &va)
-			e.IndexVacancie(string(vfi_e.Body), va.Id)
+			e.IndexVacancie(string(vfi_e.Body), va.Id, "index")
 			err := vfi_e.Ack(false)
 			if err != nil {
 				log.Println("ACK error" + err.Error())
