@@ -1,7 +1,8 @@
-package main
+package analyzer
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	e "github.com/NickBabakin/ipiad/res/elasticgo"
@@ -40,8 +41,8 @@ func drawProfessions(devs int, analysts int, architects int) {
 	}
 }
 
-func main() {
-	time.Sleep(time.Second * 90)
+func Analyze(wg_ext *sync.WaitGroup) {
+	time.Sleep(time.Second * 50)
 	for {
 		err := e.Init_elastic()
 		if err == nil {
@@ -58,4 +59,6 @@ func main() {
 	analysts := e.SearchProfessionVacancies(e.Analyst)
 	architects := e.SearchProfessionVacancies(e.Architect)
 	drawProfessions(devs, analysts, architects)
+
+	wg_ext.Done()
 }
