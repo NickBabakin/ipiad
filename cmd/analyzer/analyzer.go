@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"time"
 
 	e "github.com/NickBabakin/ipiad/res/elasticgo"
@@ -41,6 +41,7 @@ func drawProfessions(devs int, analysts int, architects int) {
 }
 
 func main() {
+	log.Println("Analyzer waits for data")
 	time.Sleep(time.Second * 90)
 	for {
 		err := e.Init_elastic()
@@ -50,12 +51,15 @@ func main() {
 		time.Sleep(time.Second * 30)
 	}
 
-	fmt.Println("Total:")
+	log.Println("Total:")
 	e.SearchAllVacancies()
-	fmt.Println("MTS developers:")
+	log.Println("MTS developers:")
 	e.SearchMtsDevVacancies()
+	log.Println("Developers:")
 	devs := e.SearchProfessionVacancies(e.Developer)
+	log.Println("Analysts evelopers:")
 	analysts := e.SearchProfessionVacancies(e.Analyst)
+	log.Println("AArchotects developers:")
 	architects := e.SearchProfessionVacancies(e.Architect)
 	drawProfessions(devs, analysts, architects)
 }

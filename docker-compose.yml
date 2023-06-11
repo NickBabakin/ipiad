@@ -10,9 +10,21 @@ services:
         - rabbitmq_go_net 
 
   crawler:
-    build: .
+    build:
+      context: ./cmd/main
+      dockerfile: Dockerfile
     ports:
       - 5050:5050
+    networks:
+      - rabbitmq_go_net
+    restart: on-failure
+
+  analyzer:
+    build:
+      context: ./cmd/analyzer
+      dockerfile: Dockerfile
+#    ports:
+#      - 5050:5050
     networks:
       - rabbitmq_go_net
     restart: on-failure
