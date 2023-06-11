@@ -13,7 +13,7 @@ func main() {
 		return
 	}
 
-	e.FindDevVacancies()
-	e.FindAllVacancies()
+	e.FindMtsDevVacancies()
+	//	e.FindAllVacancies()
 
 }

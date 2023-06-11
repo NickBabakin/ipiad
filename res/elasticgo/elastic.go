@@ -75,10 +75,9 @@ func GetVacancieById(id string) (string, error) {
 	return string(vacancie_res_str), nil
 }
 
-func FindDevVacancies() {
+func FindMtsDevVacancies() {
 	var (
 		r map[string]interface{}
-		//wg sync.WaitGroup
 	)
 
 	var buf bytes.Buffer
@@ -86,6 +85,16 @@ func FindDevVacancies() {
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": []map[string]interface{}{
+					{
+						"match": map[string]interface{}{
+							"company_name": map[string]interface{}{
+								"query":     "МТС",
+								"fuzziness": "AUTO",
+							},
+						},
+					},
+				},
+				"should": []map[string]interface{}{
 					{
 						"match": map[string]interface{}{
 							"title": map[string]interface{}{
@@ -96,8 +105,8 @@ func FindDevVacancies() {
 					},
 					{
 						"match": map[string]interface{}{
-							"company_name": map[string]interface{}{
-								"query":     "МТС",
+							"title": map[string]interface{}{
+								"query":     "Developer",
 								"fuzziness": "AUTO",
 							},
 						},
@@ -142,7 +151,7 @@ func FindDevVacancies() {
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		log.Fatalf("Error parsing the response body: %s", err)
 	}
-	// Print the response status, number of results, and request duration.
+
 	log.Printf(
 		"[%s] %d hits; took: %dms",
 		res.Status(),
@@ -162,7 +171,6 @@ func FindDevVacancies() {
 func FindAllVacancies() {
 	var (
 		r map[string]interface{}
-		//wg sync.WaitGroup
 	)
 
 	var buf bytes.Buffer
