@@ -15,7 +15,8 @@ import (
 
 var Cfg elasticsearch.Config = elasticsearch.Config{
 	Addresses: []string{
-		"http://localhost:9200",
+		"http://es-container:9200", // with docker
+		//"http://localhost:9200", // without docker
 	},
 }
 
@@ -36,8 +37,6 @@ func Init_elastic() error {
 		return err
 	}
 	defer res.Body.Close()
-
-	log.Println(res)
 	return nil
 }
 
@@ -75,110 +74,12 @@ func GetVacancieById(id string) (string, error) {
 	return string(vacancie_res_str), nil
 }
 
-func FindMtsDevVacancies() {
+func search(query map[string]interface{}) map[string]interface{} {
 	var (
 		r map[string]interface{}
 	)
 
 	var buf bytes.Buffer
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must": []map[string]interface{}{
-					{
-						"match": map[string]interface{}{
-							"company_name": map[string]interface{}{
-								"query":     "МТС",
-								"fuzziness": "AUTO",
-							},
-						},
-					},
-				},
-				"should": []map[string]interface{}{
-					{
-						"match": map[string]interface{}{
-							"title": map[string]interface{}{
-								"query":     "Разработчик",
-								"fuzziness": "AUTO",
-							},
-						},
-					},
-					{
-						"match": map[string]interface{}{
-							"title": map[string]interface{}{
-								"query":     "Developer",
-								"fuzziness": "AUTO",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	if err := json.NewEncoder(&buf).Encode(query); err != nil {
-		log.Fatalf("Error encoding query: %s", err)
-	}
-
-	// Perform the search request.
-	res, err := es.Search(
-		es.Search.WithContext(context.Background()),
-		es.Search.WithIndex("vacancies"),
-		es.Search.WithBody(&buf),
-		es.Search.WithTrackTotalHits(true),
-		es.Search.WithPretty(),
-	)
-
-	if err != nil {
-		log.Fatalf("Error getting response: %s", err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		var e map[string]interface{}
-		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
-			log.Fatalf("Error parsing the response body: %s", err)
-		} else {
-			// Print the response status and error information.
-			log.Fatalf("[%s] %s: %s",
-				res.Status(),
-				e["error"].(map[string]interface{})["type"],
-				e["error"].(map[string]interface{})["reason"],
-			)
-		}
-	}
-
-	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
-		log.Fatalf("Error parsing the response body: %s", err)
-	}
-
-	log.Printf(
-		"[%s] %d hits; took: %dms",
-		res.Status(),
-		int(r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)),
-		int(r["took"].(float64)),
-	)
-
-	// Print the ID and document source for each hit.
-	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
-		log.Printf(" * ID=%s, %s", hit.(map[string]interface{})["_id"], hit.(map[string]interface{})["_source"])
-	}
-
-	log.Println(strings.Repeat("=", 37))
-
-}
-
-func FindAllVacancies() {
-	var (
-		r map[string]interface{}
-	)
-
-	var buf bytes.Buffer
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"match_all": map[string]interface{}{},
-		},
-	}
 	if err := json.NewEncoder(&buf).Encode(query); err != nil {
 		log.Fatalf("Error encoding query: %s", err)
 	}
@@ -222,11 +123,111 @@ func FindAllVacancies() {
 		int(r["took"].(float64)),
 	)
 
-	// Print the ID and document source for each hit.
-	//	for _, hit := range r["hits"].(map[string]interface{})["hits"].([]interface{}) {
-	//		log.Printf(" * ID=%s, %s", hit.(map[string]interface{})["_id"], hit.(map[string]interface{})["_source"])
-	//	}
+	return r
+}
 
-	log.Println(strings.Repeat("=", 37))
+func SearchMtsDevVacancies() {
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": []map[string]interface{}{
+					{
+						"match": map[string]interface{}{
+							"company_name": map[string]interface{}{
+								"query":     "МТС",
+								"fuzziness": "AUTO",
+							},
+						},
+					},
+				},
+				"should": []map[string]interface{}{
+					{
+						"match": map[string]interface{}{
+							"title": map[string]interface{}{
+								"query":     "Разработчик",
+								"fuzziness": "AUTO",
+							},
+						},
+					},
+					{
+						"match": map[string]interface{}{
+							"title": map[string]interface{}{
+								"query":     "Developer",
+								"fuzziness": "AUTO",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 
+	search(query)
+}
+
+func SearchAllVacancies() {
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"match_all": map[string]interface{}{},
+		},
+	}
+	search(query)
+}
+
+type Profession int
+
+const (
+	Developer Profession = iota
+	Analyst
+	Architect
+)
+
+var developerEnStr string = ".*eveloper.*"
+var developerRuStr string = ".*азработчик.*"
+var analystEnStr string = ".*nalyst.*"
+var analystRuStr string = ".*налитик.*"
+var architectEnStr string = ".*rchitect.*"
+var architectRuStr string = ".*рхитектор.*"
+
+func SearchProfessionVacancies(profession Profession) int {
+	var profRuStr string
+	var profEnStr string
+
+	switch profession {
+	case Developer:
+		profRuStr = developerRuStr
+		profEnStr = developerEnStr
+	case Analyst:
+		profRuStr = analystRuStr
+		profEnStr = analystEnStr
+	case Architect:
+		profRuStr = architectRuStr
+		profEnStr = architectEnStr
+	}
+
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []map[string]interface{}{
+					{
+						"regexp": map[string]interface{}{
+							"title": map[string]interface{}{
+								"value": profEnStr,
+							},
+						},
+					},
+					{
+						"regexp": map[string]interface{}{
+							"title": map[string]interface{}{
+								"value": profRuStr,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	res := search(query)
+	return int(res["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64))
 }
