@@ -18,13 +18,13 @@ import (
 	v "github.com/NickBabakin/ipiad/res/vacanciestructs"
 	"github.com/andybalholm/cascadia"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"golang.org/x/exp/slices"
 
 	"golang.org/x/net/html"
 )
 
 var vacancieMinInfoStr string = "VacancieMinInfo"
 var vacancieFullInfoStr string = "VacancieFullInfo"
+var habrStr string = "https://career.habr.com/vacancies?type=all&page="
 
 func Query(n *html.Node, query string) *html.Node {
 	sel, err := cascadia.Parse(query)
@@ -34,17 +34,17 @@ func Query(n *html.Node, query string) *html.Node {
 	return cascadia.Query(n, sel)
 }
 
-var i int = 0
-
-func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
+func ParseStartingPage(wg_ext *sync.WaitGroup) {
 	defer wg_ext.Done()
 
-	ids := []string{}
-
-	page, err := HTMLfromURL(habr_str)
-	if err != nil {
-		fmt.Println(err)
-		return
+	var pages [10]*html.Node
+	for i := 0; i < 10; i++ {
+		page, err := HTMLfromURL(habrStr + strconv.Itoa(i))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		pages[i] = page
 	}
 
 	var fillURLs func(*html.Node, *regexp.Regexp)
@@ -55,15 +55,6 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 				if a.Key == "href" {
 					if re.MatchString(a.Val) {
 						id := a.Val[len(a.Val)-10:]
-						if slices.Contains(ids, id) {
-							return
-						} else {
-							ids = append(ids, id)
-						}
-						i++
-						if i > 30 {
-							return
-						}
 						vacancie := v.VacancieMinInfo{
 							Url: "https://career.habr.com" + a.Val,
 							Id:  id}
@@ -87,7 +78,13 @@ func ParseStartingPage(habr_str string, wg_ext *sync.WaitGroup) {
 			fillURLs(c, re)
 		}
 	}
-	fillURLs(page, re)
+
+	for _, page := range pages {
+		if page == nil {
+			break
+		}
+		fillURLs(page, re)
+	}
 }
 
 func HTMLfromURL(url string) (*html.Node, error) {
@@ -112,11 +109,13 @@ func HTMLfromURL(url string) (*html.Node, error) {
 func ParseVacanciePage(va *v.Vacancie) v.VacancieFullInfo {
 	va.Title = Query(va.HtmlNode, ".page-title__title").FirstChild.Data
 	va.CompanyName = Query(va.HtmlNode, ".company_name > a").FirstChild.Data
+	va.Date = Query(va.HtmlNode, "div.vacancy-header__date > span > time").Attr[1].Val[0:10]
 	return v.VacancieFullInfo{
 		Id:          va.Id,
 		Title:       va.Title,
 		CompanyName: va.CompanyName,
 		Url:         va.Url,
+		Date:        va.Date,
 	}
 }
 
@@ -202,7 +201,7 @@ func Work() {
 		time.Sleep(time.Second * 5)
 	}
 
-	logFile, err := os.OpenFile("logs/log.txt", os.O_CREATE|os.O_RDWR, 0666)
+	logFile, err := os.OpenFile("logs/log.txt", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
 	if err != nil {
 		panic(err)
 	}
@@ -213,7 +212,7 @@ func Work() {
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go ParseStartingPage("https://career.habr.com/vacancies", &wg)
+	go ParseStartingPage(&wg)
 	go ParseVacancies(&wg)
 	go SaveVacancies(&wg)
 

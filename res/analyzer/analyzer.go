@@ -12,12 +12,8 @@ func main() {
 	if err != nil {
 		return
 	}
-	res, err := e.GetVacancieById("1000119848")
-	if err != nil {
-		fmt.Println("error gerring doc : ", err)
-	}
-	fmt.Println(res)
 
-	e.FindAllvacancies()
+	e.FindDevVacancies()
+	e.FindAllVacancies()
 
 }

@@ -7,6 +7,7 @@ type Vacancie struct {
 	Title       string
 	CompanyName string
 	Id          string
+	Date        string
 	HtmlNode    *html.Node
 }
 
@@ -20,4 +21,5 @@ type VacancieFullInfo struct {
 	Id          string `json:"id"`
 	Title       string `json:"title"`
 	CompanyName string `json:"company_name"`
+	Date        string `json:"date"`
 }
