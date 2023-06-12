@@ -202,6 +202,7 @@ func Work() {
 		time.Sleep(time.Second * 5)
 	}
 
+	os.MkdirAll("logs", 0750)
 	logFile, err := os.OpenFile("logs/log.txt", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
 	if err != nil {
 		panic(err)

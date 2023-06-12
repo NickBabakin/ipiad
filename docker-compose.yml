@@ -10,12 +10,26 @@ services:
         - rabbitmq_go_net 
 
   crawler:
-    build: .
+    build:
+      context: .
+      dockerfile: ./cmd/crawler/Dockerfile
     ports:
       - 5050:5050
     networks:
       - rabbitmq_go_net
     restart: on-failure
+    volumes:
+      - ./logs/crawler:/logs
+
+  analyzer:
+    build:
+      context: .
+      dockerfile: ./cmd/analyzer/Dockerfile
+    networks:
+      - rabbitmq_go_net
+    restart: on-failure
+    volumes:
+      - ./logs/analyzer:/logs
 
   elasticsearch:
     container_name: es-container
