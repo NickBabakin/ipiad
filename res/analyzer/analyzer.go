@@ -1,7 +1,7 @@
 package analyzer
 
 import (
-	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -51,12 +51,15 @@ func Analyze(wg_ext *sync.WaitGroup) {
 		time.Sleep(time.Second * 30)
 	}
 
-	fmt.Println("Total:")
+	log.Println("Total:")
 	e.SearchAllVacancies()
-	fmt.Println("MTS developers:")
+	log.Println("MTS developers:")
 	e.SearchMtsDevVacancies()
+	log.Println("Developers:")
 	devs := e.SearchProfessionVacancies(e.Developer)
+	log.Println("Analysts:")
 	analysts := e.SearchProfessionVacancies(e.Analyst)
+	log.Println("Architects:")
 	architects := e.SearchProfessionVacancies(e.Architect)
 	drawProfessions(devs, analysts, architects)
 
