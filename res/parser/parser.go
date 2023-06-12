@@ -211,7 +211,7 @@ func Work() {
 	log.SetOutput(mw)
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(3)
 
 	go ParseStartingPage(&wg)
 	go ParseVacancies(&wg)

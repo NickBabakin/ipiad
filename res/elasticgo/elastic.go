@@ -15,8 +15,8 @@ import (
 
 var Cfg elasticsearch.Config = elasticsearch.Config{
 	Addresses: []string{
-		"http://es-container:9200", // with docker
-		//"http://localhost:9200", // without docker
+		//"http://es-container:9200", // with docker
+		"http://localhost:9200", // without docker
 	},
 }
 
@@ -180,7 +180,21 @@ const (
 	Developer Profession = iota
 	Analyst
 	Architect
+	Other
 )
+
+type VacancieProfession struct {
+	Id         string
+	Profession Profession
+	Title      string
+}
+
+var ProffessionToString = map[Profession]string{
+	Developer: "Developer",
+	Analyst:   "Analyst",
+	Architect: "Architect",
+	Other:     "Other",
+}
 
 var developerEnStr string = ".*eveloper.*"
 var developerRuStr string = ".*азработчик.*"
@@ -189,7 +203,23 @@ var analystRuStr string = ".*налитик.*"
 var architectEnStr string = ".*rchitect.*"
 var architectRuStr string = ".*рхитектор.*"
 
-func SearchProfessionVacancies(profession Profession) int {
+func newVacancieProfessionSlice(profession Profession, source map[string]interface{}) []VacancieProfession {
+	vacancieProfessionSlice := make([]VacancieProfession, 0, 500)
+
+	for _, hit := range source["hits"].(map[string]interface{})["hits"].([]interface{}) {
+		id := fmt.Sprintf("%v", hit.(map[string]interface{})["_id"])
+		title := fmt.Sprintf("%v", hit.(map[string]interface{})["_source"].(map[string]interface{})["title"])
+		//		log.Printf(" * ID=%s, %s", id, title)
+		vacancieProfessionSlice = append(vacancieProfessionSlice, VacancieProfession{
+			Id:         id,
+			Title:      title,
+			Profession: profession,
+		})
+	}
+	return vacancieProfessionSlice
+}
+
+func SearchProfessionVacancies(profession Profession) []VacancieProfession {
 	var profRuStr string
 	var profEnStr string
 
@@ -203,6 +233,8 @@ func SearchProfessionVacancies(profession Profession) int {
 	case Architect:
 		profRuStr = architectRuStr
 		profEnStr = architectEnStr
+	case Other:
+		return SearchOtherVacancies()
 	}
 
 	query := map[string]interface{}{
@@ -226,8 +258,69 @@ func SearchProfessionVacancies(profession Profession) int {
 				},
 			},
 		},
+		"size": 500,
 	}
 
 	res := search(query)
-	return int(res["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64))
+
+	return newVacancieProfessionSlice(profession, res)
+}
+
+func SearchOtherVacancies() []VacancieProfession {
+
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must_not": []map[string]interface{}{
+					{
+						"regexp": map[string]interface{}{
+							"title": map[string]interface{}{
+								"value": developerRuStr,
+							},
+						},
+					},
+					{
+						"regexp": map[string]interface{}{
+							"title": map[string]interface{}{
+								"value": developerEnStr,
+							},
+						},
+					},
+					{
+						"regexp": map[string]interface{}{
+							"title": map[string]interface{}{
+								"value": analystRuStr,
+							},
+						},
+					},
+					{
+						"regexp": map[string]interface{}{
+							"title": map[string]interface{}{
+								"value": analystEnStr,
+							},
+						},
+					},
+					{
+						"regexp": map[string]interface{}{
+							"title": map[string]interface{}{
+								"value": architectRuStr,
+							},
+						},
+					},
+					{
+						"regexp": map[string]interface{}{
+							"title": map[string]interface{}{
+								"value": architectEnStr,
+							},
+						},
+					},
+				},
+			},
+		},
+		"size": 500,
+	}
+
+	res := search(query)
+
+	return newVacancieProfessionSlice(Profession(Other), res)
 }
