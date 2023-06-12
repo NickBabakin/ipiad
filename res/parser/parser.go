@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NickBabakin/ipiad/res/analyzer"
 	e "github.com/NickBabakin/ipiad/res/elasticgo"
 	"github.com/NickBabakin/ipiad/res/rabbitmqgo"
 	v "github.com/NickBabakin/ipiad/res/vacanciestructs"
@@ -217,7 +216,6 @@ func Work() {
 	go ParseStartingPage(&wg)
 	go ParseVacancies(&wg)
 	go SaveVacancies(&wg)
-	go analyzer.Analyze(&wg)
 
 	wg.Wait()
 }

@@ -1,14 +1,9 @@
-package analyzer
+package main
 
 import (
-<<<<<<< HEAD:res/analyzer/analyzer.go
-	"log"
-	"sync"
-=======
 	"io"
 	"log"
 	"os"
->>>>>>> modules:cmd/analyzer/analyzer.go
 	"time"
 
 	e "github.com/NickBabakin/ipiad/res/elasticgo"
@@ -47,10 +42,6 @@ func drawProfessions(devs int, analysts int, architects int) {
 	}
 }
 
-<<<<<<< HEAD:res/analyzer/analyzer.go
-func Analyze(wg_ext *sync.WaitGroup) {
-	time.Sleep(time.Second * 50)
-=======
 func main() {
 
 	os.MkdirAll("logs", 0750)
@@ -64,7 +55,6 @@ func main() {
 
 	log.Println("Analyzer waits for data")
 	time.Sleep(time.Second * 90)
->>>>>>> modules:cmd/analyzer/analyzer.go
 	for {
 		err := e.Init_elastic()
 		if err == nil {
@@ -85,5 +75,4 @@ func main() {
 	architects := e.SearchProfessionVacancies(e.Architect)
 	drawProfessions(devs, analysts, architects)
 
-	wg_ext.Done()
 }
