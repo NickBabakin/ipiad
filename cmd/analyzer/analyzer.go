@@ -1,7 +1,9 @@
 package main
 
 import (
+	"io"
 	"log"
+	"os"
 	"time"
 
 	e "github.com/NickBabakin/ipiad/res/elasticgo"
@@ -41,6 +43,16 @@ func drawProfessions(devs int, analysts int, architects int) {
 }
 
 func main() {
+
+	os.MkdirAll("logs", 0750)
+	logFile, err := os.OpenFile("logs/log_analyzer.txt", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
+	if err != nil {
+		panic(err)
+	}
+
+	mw := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(mw)
+
 	log.Println("Analyzer waits for data")
 	time.Sleep(time.Second * 90)
 	for {
@@ -57,9 +69,9 @@ func main() {
 	e.SearchMtsDevVacancies()
 	log.Println("Developers:")
 	devs := e.SearchProfessionVacancies(e.Developer)
-	log.Println("Analysts evelopers:")
+	log.Println("Analysts:")
 	analysts := e.SearchProfessionVacancies(e.Analyst)
-	log.Println("AArchotects developers:")
+	log.Println("Architects:")
 	architects := e.SearchProfessionVacancies(e.Architect)
 	drawProfessions(devs, analysts, architects)
 }
