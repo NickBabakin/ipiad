@@ -107,8 +107,8 @@ func ai(allVacancieProfessions []e.VacancieProfession) {
 func analyze() {
 	log.Println("Total:")
 	e.SearchAllVacancies()
-	//	log.Println("MTS developers:")
-	//	e.SearchMtsDevVacancies()
+	log.Println("MTS developers:")
+	e.SearchMtsDevVacancies()
 	log.Println("Developers:")
 	devs := e.SearchProfessionVacancies(e.Developer)
 	log.Println("Analysts:")
@@ -143,7 +143,7 @@ func main() {
 	log.SetOutput(mw)
 
 	log.Println("Analyzer waits for data")
-	//	time.Sleep(time.Second * 90)
+	time.Sleep(time.Second * 90)
 	for {
 		err := e.Init_elastic()
 		if err == nil {

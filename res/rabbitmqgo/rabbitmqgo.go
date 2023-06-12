@@ -23,8 +23,8 @@ func failOnError(err error, msg string) {
 func InitRabbit() *Rabbit {
 	rabbit := Rabbit{nil, nil}
 	var err error
-	rabbit.Conn, err = amqp.Dial("amqp://guest:guest@localhost:5672/") // without docker
-	//rabbit.Conn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/") // with docker
+	//rabbit.Conn, err = amqp.Dial("amqp://guest:guest@localhost:5672/") // without docker
+	rabbit.Conn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/") // with docker
 	failOnError(err, "Failed to connect to RabbitMQ")
 
 	rabbit.Ch, err = rabbit.Conn.Channel()

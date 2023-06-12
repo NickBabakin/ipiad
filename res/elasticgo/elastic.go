@@ -15,8 +15,8 @@ import (
 
 var Cfg elasticsearch.Config = elasticsearch.Config{
 	Addresses: []string{
-		//"http://es-container:9200", // with docker
-		"http://localhost:9200", // without docker
+		"http://es-container:9200", // with docker
+		//"http://localhost:9200", // without docker
 	},
 }
 
